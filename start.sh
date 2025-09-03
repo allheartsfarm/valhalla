@@ -43,8 +43,8 @@ if [ -n "${PORT:-}" ]; then
     tmpcfg="$(mktemp)"
     jq --arg p "$PORT" '.httpd.service.listen = ("tcp://[::]:" + $p)' "$DATA_DIR/valhalla.json" > "$tmpcfg" && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
   else
-    # Fallback: replace any listen value with IPv6 any on the chosen port
-    sed -i.bak -E "s#(\"listen\"[[:space:]]*:[[:space:]]*\")[^"]+(\")#\1tcp://[::]:$PORT\2#" "$DATA_DIR/valhalla.json" || true
+    # Fallback: replace any listen value with IPv6 any on the chosen port (POSIX sh-safe quoting)
+    sed -i.bak -E 's#("listen"[[:space:]]*:[[:space:]]*")[^"]+("\)#\1tcp://[::]:'"$PORT"'\2#' "$DATA_DIR/valhalla.json" || true
   fi
 fi
 
