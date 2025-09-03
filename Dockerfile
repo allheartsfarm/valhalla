@@ -1,5 +1,5 @@
 FROM ghcr.io/valhalla/valhalla:latest
-EXPOSE 8002
+EXPOSE 8080
 COPY start.sh /usr/local/bin/start.sh
 RUN chmod +x /usr/local/bin/start.sh
 ENV DATA_DIR=/data

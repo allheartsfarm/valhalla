@@ -4,7 +4,7 @@ services:
     image: ghcr.io/valhalla/valhalla:latest
     container_name: valhalla
     ports:
-      - "${VALHALLA_PORT:-8002}:8002"
+      - "${VALHALLA_PORT:-8080}:8080"
     volumes:
       - ./data:/data
     command: ["valhalla_service", "/data/valhalla.json", "1"]

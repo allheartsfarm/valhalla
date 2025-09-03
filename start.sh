@@ -4,7 +4,7 @@ set -eu
 DATA_DIR="${DATA_DIR:-/data}"
 PBF_URL="${PBF_URL:-https://download.geofabrik.de/north-america/us-northeast-latest.osm.pbf}"
 WORKERS="${WORKERS:-1}"
-PORT="${PORT:-8002}"
+PORT="${PORT:-8080}"
 
 mkdir -p "$DATA_DIR/valhalla_tiles" "$DATA_DIR/valhalla"
 
