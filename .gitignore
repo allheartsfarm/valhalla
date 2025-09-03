@@ -1,0 +1,6 @@
+# Local environment
+.env
+
+# Data and generated content
+/data/
+!data/.gitkeep

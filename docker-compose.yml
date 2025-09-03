@@ -1,0 +1,11 @@
+version: "3.8"
+services:
+  valhalla:
+    image: ghcr.io/valhalla/valhalla:latest
+    container_name: valhalla
+    ports:
+      - "${VALHALLA_PORT:-8002}:8002"
+    volumes:
+      - ./data:/data
+    command: ["valhalla_service", "/data/valhalla.json", "1"]
+    restart: unless-stopped
