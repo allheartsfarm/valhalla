@@ -118,16 +118,24 @@ Use the helper to download an extract and build tiles locally using the Docker i
 Tiles and config are written under `./data`. Then start with `./scripts/run.sh`.
 
 ## Deploying to Railway (optional)
-If you plan to run Valhalla on Railway, use a tiny repo with a `start.sh` and `Dockerfile` so the platform runs your startup logic reliably. Your local compose setup here is enough for local use; Railway-specific files are only needed if deploying there. I can scaffold a minimal Railway repo configured for US Northeast on request.
+## Railway Deploy
+This repo doubles as a Railway-ready project using Docker.
 
-Once `data/valhalla.json` and tiles exist, `docker-compose up` will run the service.
+- Persistent storage: set a volume and mount it at `/data` in Railway settings.
+- Build: uses the included `Dockerfile`.
+- Start: `start.sh` is run as the container `CMD`.
 
+Steps:
+1. Link project: `railway link` (select your target)
+2. Deploy: `railway up`
+3. Ensure persistent storage mount path is `/data`
+4. Test:
+   - `curl "https://<service>.up.railway.app/status"`
+   - `curl "https://<service>.up.railway.app/route?json={\"locations\":[{\"lat\":40.7128,\"lon\":-74.0060},{\"lat\":40.7357,\"lon\":-74.1724}],\"costing\":\"auto\"}"`
 
-## Notes
-## Notes
-- The compose file exposes port `8002` by default (override with `VALHALLA_PORT` in `.env`).
-- The compose file exposes port `8002` by default (override with `VALHALLA_PORT` in `.env`).
-- `data/` is `.gitignore`’d to avoid committing large files.
-- `data/` is `.gitignore`’d to avoid committing large files.
+Environment variables (optional overrides):
+- `PBF_URL`: defaults to US Northeast extract
+- `WORKERS`: default 1
+- `PORT`: Railway usually sets; defaults to 8002 if absent
 
-
+If the Railway UI previously had a long start command saved, clear it so Docker CMD runs `start.sh`.

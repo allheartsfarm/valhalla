@@ -1,0 +1,8 @@
+# ignore local data and VCS
+.git
+.gitignore
+.env
+/data
+/data/**
+data
+node_modules

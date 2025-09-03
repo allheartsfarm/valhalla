@@ -1,0 +1,11 @@
+[build]
+builder = "DOCKERFILE"
+
+[deploy]
+numReplicas = 1
+restartPolicyType = "ON_FAILURE"
+
+[variables]
+WORKERS = "1"
+PBF_URL = "https://download.geofabrik.de/north-america/us-northeast-latest.osm.pbf"
+# PORT is provided by Railway; start.sh also defaults to 8002
