@@ -37,4 +37,16 @@ if [ ! -s "$DATA_DIR/valhalla_tiles.tar" ]; then
   valhalla_build_extract -c "$DATA_DIR/valhalla.json" -v
 fi
 
-exec valhalla_service "$DATA_DIR/valhalla.json" "$WORKERS" 0.0.0.0 "$PORT"
+# Ensure the service listens on the desired PORT by updating config
+if [ -n "${PORT:-}" ]; then
+  if command -v jq >/dev/null 2>&1; then
+    tmpcfg="$(mktemp)"
+    jq --arg p "$PORT" '.httpd.service.listen = "tcp://0.0.0.0:\($p)"' "$DATA_DIR/valhalla.json" > "$tmpcfg" && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
+  else
+    # Fallback: replace any 0.0.0.0:<port> in listen entry
+    sed -i.bak -E "s#(\"listen\"\s*:\s*\"tcp://0.0.0.0:)\d+#\1$PORT#" "$DATA_DIR/valhalla.json" || true
+  fi
+fi
+
+# Start service: only pass CONFIG and optional CONCURRENCY
+exec valhalla_service "$DATA_DIR/valhalla.json" "$WORKERS"
