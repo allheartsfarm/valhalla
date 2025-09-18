@@ -51,31 +51,50 @@ fi
 # Optional: increase auto.max_locations without full config overlay
 # Set AUTO_MAX_LOCATIONS=100 (or desired value) in the environment (e.g., Railway UI)
 if [ -n "${AUTO_MAX_LOCATIONS:-}" ]; then
-  echo "Setting service_limits.auto.max_locations=$AUTO_MAX_LOCATIONS"
-  if command -v jq >/dev/null 2>&1; then
-    tmpcfg="$(mktemp)"
-    jq --argjson n "${AUTO_MAX_LOCATIONS}" '.service_limits.auto.max_locations = $n' \
-      "$DATA_DIR/valhalla.json" > "$tmpcfg" \
-      && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
+  # Sanitize to a number in case the UI included quotes
+  AUTO_MAX_LOCATIONS_NUM=$(printf "%s" "$AUTO_MAX_LOCATIONS" | tr -cd '0-9')
+  if [ -z "$AUTO_MAX_LOCATIONS_NUM" ]; then
+    echo "Warning: AUTO_MAX_LOCATIONS is not numeric ('$AUTO_MAX_LOCATIONS'). Skipping." >&2
   else
-    # awk fallback: update only the first max_locations inside the auto block
-    tmpcfg="$(mktemp)"
-    awk -v newval="${AUTO_MAX_LOCATIONS}" '
-      BEGIN{in_auto=0;done=0}
-      {
-        line=$0
-        if(in_auto==0){
-          if(line ~ /\"auto\"[[:space:]]*:[[:space:]]*{/){ in_auto=1 }
-        } else {
-          if(done==0 && line ~ /\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/){
-            sub(/\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/, "\"max_locations\": " newval, line)
-            done=1
+    echo "Setting service_limits.auto.max_locations=$AUTO_MAX_LOCATIONS_NUM"
+    if command -v jq >/dev/null 2>&1; then
+      tmpcfg="$(mktemp)"
+      jq --arg n "$AUTO_MAX_LOCATIONS_NUM" \
+        '.service_limits.auto.max_locations = ($n|tonumber)
+         | .service_limits.optimized_route = (.service_limits.optimized_route // {})
+         | .service_limits.optimized_route.max_locations = ($n|tonumber)'
+        "$DATA_DIR/valhalla.json" > "$tmpcfg" \
+        && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
+    else
+      # awk fallback: specifically target service_limits.auto and optimized_route blocks
+      tmpcfg="$(mktemp)"
+      awk -v newval="$AUTO_MAX_LOCATIONS_NUM" '
+        BEGIN{in_service=0;in_auto=0;in_opt=0;brace=0}
+        {
+          line=$0
+          # Track entry into service_limits object
+          if(in_service==0 && line ~ /\"service_limits\"[[:space:]]*:[[:space:]]*{/){ in_service=1; brace=1 }
+          else if(in_service==1){
+            # Update brace depth within service_limits
+            if(index(line, "{")>0) brace+=gsub(/\{/,"{")
+            if(index(line, "}")>0) brace-=gsub(/\}/,"}")
+            if(line ~ /\"auto\"[[:space:]]*:[[:space:]]*{/){ in_auto=1 }
+            if(line ~ /\"optimized_route\"[[:space:]]*:[[:space:]]*{/){ in_opt=1 }
+            if(in_auto==1 && line ~ /\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/){
+              sub(/\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/, "\"max_locations\": " newval, line)
+            }
+            if(in_opt==1 && line ~ /\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/){
+              sub(/\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/, "\"max_locations\": " newval, line)
+            }
+            # exit sub-objects crudely when encountering a closing brace on its own level
+            if(in_auto==1 && line ~ /}/){ in_auto=0 }
+            if(in_opt==1 && line ~ /}/){ in_opt=0 }
+            if(brace<=0){ in_service=0 }
           }
-          if(line ~ /}/){ in_auto=0 }
+          print line
         }
-        print line
-      }
-    ' "$DATA_DIR/valhalla.json" > "$tmpcfg" && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
+      ' "$DATA_DIR/valhalla.json" > "$tmpcfg" && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
+    fi
   fi
 fi
 
