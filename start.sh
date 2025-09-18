@@ -48,5 +48,36 @@ if [ -n "${PORT:-}" ]; then
   fi
 fi
 
+# Optional: increase auto.max_locations without full config overlay
+# Set AUTO_MAX_LOCATIONS=100 (or desired value) in the environment (e.g., Railway UI)
+if [ -n "${AUTO_MAX_LOCATIONS:-}" ]; then
+  echo "Setting service_limits.auto.max_locations=$AUTO_MAX_LOCATIONS"
+  if command -v jq >/dev/null 2>&1; then
+    tmpcfg="$(mktemp)"
+    jq --argjson n "${AUTO_MAX_LOCATIONS}" '.service_limits.auto.max_locations = $n' \
+      "$DATA_DIR/valhalla.json" > "$tmpcfg" \
+      && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
+  else
+    # awk fallback: update only the first max_locations inside the auto block
+    tmpcfg="$(mktemp)"
+    awk -v newval="${AUTO_MAX_LOCATIONS}" '
+      BEGIN{in_auto=0;done=0}
+      {
+        line=$0
+        if(in_auto==0){
+          if(line ~ /\"auto\"[[:space:]]*:[[:space:]]*{/){ in_auto=1 }
+        } else {
+          if(done==0 && line ~ /\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/){
+            sub(/\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/, "\"max_locations\": " newval, line)
+            done=1
+          }
+          if(line ~ /}/){ in_auto=0 }
+        }
+        print line
+      }
+    ' "$DATA_DIR/valhalla.json" > "$tmpcfg" && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
+  fi
+fi
+
 # Start service: only pass CONFIG and optional CONCURRENCY
 exec valhalla_service "$DATA_DIR/valhalla.json" "$WORKERS"
