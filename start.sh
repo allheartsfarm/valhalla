@@ -57,19 +57,22 @@ if [ -n "${AUTO_MAX_LOCATIONS:-}" ]; then
     echo "Warning: AUTO_MAX_LOCATIONS is not numeric ('$AUTO_MAX_LOCATIONS'). Skipping." >&2
   else
     echo "Setting service_limits.auto.max_locations=$AUTO_MAX_LOCATIONS_NUM"
+    echo "Setting service_limits.truck.max_locations=$AUTO_MAX_LOCATIONS_NUM"
     if command -v jq >/dev/null 2>&1; then
       tmpcfg="$(mktemp)"
       jq --arg n "$AUTO_MAX_LOCATIONS_NUM" \
         '.service_limits.auto.max_locations = ($n|tonumber)
+         | .service_limits.truck = (.service_limits.truck // {})
+         | .service_limits.truck.max_locations = ($n|tonumber)
          | .service_limits.optimized_route = (.service_limits.optimized_route // {})
          | .service_limits.optimized_route.max_locations = ($n|tonumber)'
         "$DATA_DIR/valhalla.json" > "$tmpcfg" \
         && mv "$tmpcfg" "$DATA_DIR/valhalla.json" || true
     else
-      # awk fallback: specifically target service_limits.auto and optimized_route blocks
+      # awk fallback: specifically target service_limits.auto, truck, and optimized_route blocks
       tmpcfg="$(mktemp)"
       awk -v newval="$AUTO_MAX_LOCATIONS_NUM" '
-        BEGIN{in_service=0;in_auto=0;in_opt=0;brace=0}
+        BEGIN{in_service=0;in_auto=0;in_truck=0;in_opt=0;brace=0}
         {
           line=$0
           # Track entry into service_limits object
@@ -79,8 +82,12 @@ if [ -n "${AUTO_MAX_LOCATIONS:-}" ]; then
             if(index(line, "{")>0) brace+=gsub(/\{/,"{")
             if(index(line, "}")>0) brace-=gsub(/\}/,"}")
             if(line ~ /\"auto\"[[:space:]]*:[[:space:]]*{/){ in_auto=1 }
+            if(line ~ /\"truck\"[[:space:]]*:[[:space:]]*{/){ in_truck=1 }
             if(line ~ /\"optimized_route\"[[:space:]]*:[[:space:]]*{/){ in_opt=1 }
             if(in_auto==1 && line ~ /\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/){
+              sub(/\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/, "\"max_locations\": " newval, line)
+            }
+            if(in_truck==1 && line ~ /\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/){
               sub(/\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/, "\"max_locations\": " newval, line)
             }
             if(in_opt==1 && line ~ /\"max_locations\"[[:space:]]*:[[:space:]]*[0-9]+/){
@@ -88,6 +95,7 @@ if [ -n "${AUTO_MAX_LOCATIONS:-}" ]; then
             }
             # exit sub-objects crudely when encountering a closing brace on its own level
             if(in_auto==1 && line ~ /}/){ in_auto=0 }
+            if(in_truck==1 && line ~ /}/){ in_truck=0 }
             if(in_opt==1 && line ~ /}/){ in_opt=0 }
             if(brace<=0){ in_service=0 }
           }
